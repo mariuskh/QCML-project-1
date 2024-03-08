@@ -63,7 +63,7 @@ def one_qubit_SES(E0 = 0, E1 = 4, V11 = 3, V22 = -3, V12 = 0.2, l_min = 0, l_max
     Hamiltonians = H0 + ls[:,None,None]*H1[None]
     
     # calls the standard eigenvalue solver for the array of Hamiltonians
-    eigen_vals = SES(Hamiltonians)
+    eigen_vals,_ = SES(Hamiltonians)
     
     return ls, eigen_vals
     
@@ -76,31 +76,148 @@ def SES(Hamiltonians):
     eigen_vals, eigen_vecs = np.linalg.eig(Hamiltonians)
     
     # sorts the eigenvalues
-    eigen_vals_sorted = np.zeros_like(eigen_vals)
-    eigen_vals_sorted[:,0] = np.min(eigen_vals, axis=1)
-    eigen_vals_sorted[:,1] = np.max(eigen_vals, axis=1)
+    perm = eigen_vals.argsort(axis=1)
+    eigen_vals.sort(axis=1)
     
-    return eigen_vals_sorted
+    eigen_vecs = np.take_along_axis(eigen_vecs.transpose(0, 2, 1), perm[:,:,None], axis=1).transpose(0, 2, 1) # eigen_vecs[perm]
+    
+    return eigen_vals, eigen_vecs
     
 
-def plot_one_qubit(ls, eigen_vals):
+# def plot_one_qubit(ls, eigen_vals):
+#     """
+#     Plots the results for the one qubit case.
+#     """
+    
+#     plt.plot(ls, eigen_vals[:,0], label="E0")
+#     plt.plot(ls, eigen_vals[:,1], label="E1")
+#     plt.legend()
+#     plt.xlabel(r"$\lambda$")
+#     plt.ylabel("Energy")
+#     plt.show()
+    
+    
+    
+def two_qubit_SES(l_min = 0, l_max = 1, n = 1000):
+    
+    # an array of all the λ's we are testing
+    ls = np.linspace(l_min, l_max, n)
+    
+    Hx = 2.0
+    Hz = 3.0
+    # H_0
+    Energiesnoninteracting = [0.0, 2.5, 6.5, 7.0]
+    Hzs = Hz*np.array([1,-1,-1,1])
+    
+    Hamiltonians = np.zeros((n,4,4))
+    for i in range(n):
+        np.fill_diagonal(Hamiltonians[i], [Energiesnoninteracting[n]+Hzs[n]*ls[i] for n in range(len(Energiesnoninteracting))])
+        np.fill_diagonal(np.fliplr(Hamiltonians[i]), Hx*ls[i])
+    
+    # print(Hamiltonians)
+    
+    eigen_vals, eigen_vecs = SES(Hamiltonians)
+        
+    plot_eigen_vals(ls, eigen_vals)    
+    
+    
+    # ev = eigen_vecs[-1]
+    
+    entropies = np.zeros((n,4))
+    for i in range(n):
+        entropies[i] = find_entropy(eigen_vecs[i])
+    
+    print(entropies)
+    print("\n")
+    
+    plot_eigen_vals(ls, entropies)
+    
+    
+def find_entropy(ev):
+    SAs = np.zeros(4)
+    
+    for index in range(4):
+        rhoA = np.linalg.eigvalsh(trace_out(ev[:,index], 0))
+        rhoA = np.ma.masked_equal(rhoA, 0).compressed()
+        SA = - np.sum(rhoA*np.log2(rhoA))
+        SAs[-1-index] = SA
+    
+    return SAs
+    
+    
+def plot_eigen_vals(ls, eigen_vals):
     """
-    Plots the results for the one qubit case.
+    Plots the eigen values for the n-qubit case.
     """
     
-    plt.plot(ls, eigen_vals[:,0], label="E0")
-    plt.plot(ls, eigen_vals[:,1], label="E1")
+    for i in range(len(eigen_vals[0])):
+        plt.plot(ls, eigen_vals[:,i], label=f"E{i}")
     plt.legend()
+    plt.xlabel(r"$\lambda$")
+    plt.ylabel("Energy")
     plt.show()
     
     
 def main():
     
-    data = one_qubit_data()
-    ls, eigen_vals = one_qubit_SES(*data)
-    plot_one_qubit(ls, eigen_vals)
+    # data = one_qubit_data()
+    # ls, eigen_vals = one_qubit_SES(*data)
+    # plot_eigen_vals(ls, eigen_vals)
     
+    two_qubit_SES()
+
+
+
+
+def Hamiltonian(lmb):    
+    Hx = 2.0 
+    Hz = 3.0
+    H0Energiesnoninteracting = [0.0, 2.5, 6.5, 7.0]
+    
+    HI = Hz*np.kron(sigma_z, sigma_z) + Hx*np.kron(sigma_x, sigma_x)
+    H0 = np.diag(H0Energiesnoninteracting)
+    H = H0 + lmb*HI
+    return H
+
+
+def trace_out(state, index):
+    # can we just take this? 
+    ket0 = np.array([1, 0])
+    ket1 = np.array([0, 1])
+    I = np.eye(2)
+
+    density = np.outer(state, np.conj(state))
+    if index == 0:
+        op0 = np.kron(ket0, I)
+        op1 = np.kron(ket1, I)
+    elif index == 1:
+        op0 = np.kron(I, ket0)
+        op1 = np.kron(I, ket1)
+    return op0.conj() @ density @ op0.T + op1.conj() @ density @ op1.T # need to take conj() on first and .T on second since np.arrays are 
+
 
 if __name__ == "__main__":
-    main()
-
+    main()  
+    
+    
+    lmbvalues_ana = [1] # np.arange(0.99, 1, 0.01)
+    eigvals_ana = np.zeros((len(lmbvalues_ana), 4))
+    entropy = np.zeros((len(lmbvalues_ana), 4))
+    for index, lmb in enumerate(lmbvalues_ana):
+        H = Hamiltonian(lmb)
+        # if lmb == 1:
+        #     print(H)
+        eigen, eigvecs = np.linalg.eig(H)
+        permute = eigen.argsort()
+        eigvals_ana[index] = eigen[permute]
+        eigvecs = eigvecs[:,permute]
+        # print(eigvals_ana)
+        # print(eigvecs)
+        for i in range(4):
+            sub_density = trace_out(eigvecs[:, i], 0) # trace out qubit 0 from the ground state
+            lmb_density = np.linalg.eigvalsh(sub_density)
+            lmb_density = np.ma.masked_equal(lmb_density, 0).compressed() # remove zeros to avoid log(0)
+            print(lmb_density)
+            entropy[index, i] = -np.sum(lmb_density*np.log2(lmb_density))
+            
+    print(entropy)
