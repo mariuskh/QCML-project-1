@@ -143,9 +143,89 @@ def find_entropy(ev):
         SAs[-1-index] = SA
     
     return SAs
+
+
+def lipkin_model(eps=1, W=0, V=1, n=1000):
+    
+    H_J1 = np.zeros((n,3,3))
+    
+    Vs = np.linspace(0, 2, n)
+    
+    H_J1[:,0,0]   = -eps
+    H_J1[:,-1,-1] =  eps
+    H_J1[:,-1,0]  = -Vs
+    H_J1[:,0,-1]  = -Vs
+    
+    eigen_vals_J1, eigen_vecs_J1 = SES(H_J1)
+    
+    plot_eigen_vals(Vs, eigen_vals_J1, xlabel="V/ε", ylabel="E/ε")
+    
+    H_J2 = np.zeros((n,5,5))
+    
+    W  = 0
+    
+    H_J2[:,0,0]   = -2*eps
+    H_J2[:,-1,-1] =  2*eps
+    H_J2[:,1,1]   = -eps+3*W
+    H_J2[:,2,2]   =  4*W
+    H_J2[:,3,3]   =  eps+3*W
+    
+    H_J2[:,0,2]  = -np.sqrt(6)*Vs
+    H_J2[:,2,0]  = -np.sqrt(6)*Vs
+    H_J2[:,4,2]  = -np.sqrt(6)*Vs
+    H_J2[:,2,4]  = -np.sqrt(6)*Vs
+    H_J2[:,1,3]  = -3*Vs
+    H_J2[:,3,1]  = -3*Vs
+    
+    eigen_vals_J2, eigen_vecs_J2 = SES(H_J2)
+    
+    plot_eigen_vals(Vs, eigen_vals_J2, xlabel="V/ε", ylabel="E/ε")
+    
+    print(H_J2[-1])
+    print(H_J2[0])
     
     
-def plot_eigen_vals(ls, eigen_vals):
+    def Hamiltonian(v):    
+        qb = One_qubit()
+        ZIII = np.kron(qb.Z, np.kron(qb.I, np.kron(qb.I, qb.I)))
+        IZII = np.kron(qb.I, np.kron(qb.Z, np.kron(qb.I, qb.I)))
+        IIZI = np.kron(qb.I, np.kron(qb.I, np.kron(qb.Z, qb.I)))
+        IIIZ = np.kron(qb.I, np.kron(qb.I, np.kron(qb.I, qb.Z)))
+    
+        XXII = np.kron(qb.X, np.kron(qb.X, np.kron(qb.I, qb.I)))
+        XIXI = np.kron(qb.X, np.kron(qb.I, np.kron(qb.X, qb.I)))
+        XIIX = np.kron(qb.X, np.kron(qb.I, np.kron(qb.I, qb.X)))
+        IXXI = np.kron(qb.I, np.kron(qb.X, np.kron(qb.X, qb.I)))
+        IXIX = np.kron(qb.I, np.kron(qb.X, np.kron(qb.I, qb.X)))
+        IIXX = np.kron(qb.I, np.kron(qb.I, np.kron(qb.X, qb.X)))
+        
+        YYII = np.kron(qb.Y, np.kron(qb.Y, np.kron(qb.I, qb.I)))
+        YIYI = np.kron(qb.Y, np.kron(qb.I, np.kron(qb.Y, qb.I)))
+        YIIY = np.kron(qb.Y, np.kron(qb.I, np.kron(qb.I, qb.Y)))
+        IYYI = np.kron(qb.I, np.kron(qb.Y, np.kron(qb.Y, qb.I)))
+        IYIY = np.kron(qb.I, np.kron(qb.Y, np.kron(qb.I, qb.Y)))
+        IIYY = np.kron(qb.I, np.kron(qb.I, np.kron(qb.Y, qb.Y)))
+    
+        H = 0.5*(ZIII + IZII + IIZI + IIIZ) - \
+            v/2 * (XXII + XIXI + XIIX + IXXI + IXIX + IIXX) + \
+            v/2 * (YYII + YIYI + YIIY + IYYI + IYIY + IIYY)
+        return H
+    
+    v_vals_ana = np.arange(0, 2, 0.01)
+    eigvals_ana = np.zeros((len(v_vals_ana), 16))
+    entropy = np.zeros((len(v_vals_ana), 16))
+    for index, v in enumerate(v_vals_ana):
+        H = Hamiltonian(v)
+        if v == 1.99:
+            print()
+        eigen, eigvecs = np.linalg.eig(H)
+        permute = eigen.argsort()
+        eigvals_ana[index] = eigen[permute]
+        eigvecs = eigvecs[:,permute]
+    
+    
+    
+def plot_eigen_vals(ls, eigen_vals, xlabel=r"$\lambda$", ylabel="Energy"):
     """
     Plots the eigen values for the n-qubit case.
     """
@@ -153,8 +233,8 @@ def plot_eigen_vals(ls, eigen_vals):
     for i in range(len(eigen_vals[0])):
         plt.plot(ls, eigen_vals[:,i], label=f"E{i}")
     plt.legend()
-    plt.xlabel(r"$\lambda$")
-    plt.ylabel("Energy")
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
     plt.show()
     
     
@@ -164,8 +244,9 @@ def main():
     # ls, eigen_vals = one_qubit_SES(*data)
     # plot_eigen_vals(ls, eigen_vals)
     
-    two_qubit_SES()
-
+    # two_qubit_SES()
+    
+    lipkin_model()
 
 
 
@@ -200,24 +281,24 @@ if __name__ == "__main__":
     main()  
     
     
-    lmbvalues_ana = [1] # np.arange(0.99, 1, 0.01)
-    eigvals_ana = np.zeros((len(lmbvalues_ana), 4))
-    entropy = np.zeros((len(lmbvalues_ana), 4))
-    for index, lmb in enumerate(lmbvalues_ana):
-        H = Hamiltonian(lmb)
-        # if lmb == 1:
-        #     print(H)
-        eigen, eigvecs = np.linalg.eig(H)
-        permute = eigen.argsort()
-        eigvals_ana[index] = eigen[permute]
-        eigvecs = eigvecs[:,permute]
-        # print(eigvals_ana)
-        # print(eigvecs)
-        for i in range(4):
-            sub_density = trace_out(eigvecs[:, i], 0) # trace out qubit 0 from the ground state
-            lmb_density = np.linalg.eigvalsh(sub_density)
-            lmb_density = np.ma.masked_equal(lmb_density, 0).compressed() # remove zeros to avoid log(0)
-            print(lmb_density)
-            entropy[index, i] = -np.sum(lmb_density*np.log2(lmb_density))
+    # lmbvalues_ana = [1] # np.arange(0.99, 1, 0.01)
+    # eigvals_ana = np.zeros((len(lmbvalues_ana), 4))
+    # entropy = np.zeros((len(lmbvalues_ana), 4))
+    # for index, lmb in enumerate(lmbvalues_ana):
+    #     H = Hamiltonian(lmb)
+    #     # if lmb == 1:
+    #     #     print(H)
+    #     eigen, eigvecs = np.linalg.eig(H)
+    #     permute = eigen.argsort()
+    #     eigvals_ana[index] = eigen[permute]
+    #     eigvecs = eigvecs[:,permute]
+    #     # print(eigvals_ana)
+    #     # print(eigvecs)
+    #     for i in range(4):
+    #         sub_density = trace_out(eigvecs[:, i], 0) # trace out qubit 0 from the ground state
+    #         lmb_density = np.linalg.eigvalsh(sub_density)
+    #         lmb_density = np.ma.masked_equal(lmb_density, 0).compressed() # remove zeros to avoid log(0)
+    #         print(lmb_density)
+    #         entropy[index, i] = -np.sum(lmb_density*np.log2(lmb_density))
             
-    print(entropy)
+    # print(entropy)
