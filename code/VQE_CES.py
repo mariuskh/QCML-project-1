@@ -67,6 +67,7 @@ def one_qubit_SES(E0 = 0, E1 = 4, V11 = 3, V22 = -3, V12 = 0.2, l_min = 0, l_max
     
     return ls, eigen_vals
     
+
 def SES(Hamiltonians):
     """
     A generic standard eigenvalue solver.
@@ -244,9 +245,9 @@ def main():
     # ls, eigen_vals = one_qubit_SES(*data)
     # plot_eigen_vals(ls, eigen_vals)
     
-    # two_qubit_SES()
+    two_qubit_SES()
     
-    lipkin_model()
+    # lipkin_model()
 
 
 
