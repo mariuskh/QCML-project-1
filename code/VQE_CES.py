@@ -131,7 +131,8 @@ def two_qubit_SES(l_min = 0, l_max = 1, n = 1000):
     print(entropies)
     print("\n")
     
-    plot_eigen_vals(ls, entropies)
+    plot_eigen_vals(ls, entropies[:,3][:,None])
+    # plot_eigen_vals(ls, entropies)
     
     
 def find_entropy(ev):
